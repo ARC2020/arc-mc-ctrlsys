@@ -1,0 +1,14 @@
+{
+    "speed-control": {
+        "Kp" : 100,
+        "Ki" : 1,
+        "Kd" : 0,
+        "target" : 10
+    },
+    "steering-control": {
+        "Kp" : 100,
+        "Ki" : 1,
+        "Kd" : 0,
+        "target" : 0
+    }
+}
