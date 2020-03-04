@@ -15,6 +15,7 @@
 * 2020-02-03    kirsty      1      Made file  
 *
 '''
+import time
 
 class Pid():
 
@@ -26,8 +27,20 @@ class Pid():
         self.fIntegral      = 0
         self.fPrevError     = 0
 
+    def enableTime(self, sampleTime)    
+        self.timeToggle     = True
+        self.sampleTime     = sampleTime
+        self.nowTime        = time.time()
+        self.oldTime        = self.nowTime
+
+    def disableTime(self)
+        self.timeToggle = False
+
     def setTarget(self, fTarget):
         self.fTarget = fTarget
+    
+    def setSampleTime(self, time):
+        self.sampleTime = time
 
     def setWindupLimit(self, fWindup):
         self.fWindupLimit = fWindup
@@ -58,10 +71,20 @@ class Pid():
    
 
     def run(self, fInput):
+        timeCoeff = 1 
+        if hasattr(self, "timeToggle"):
+            if self.timeToggle:
+                nowTime = time.time()
+                diffTime = nowTime - self.oldTime
+                if diffTime > self.sampleTime:
+                    timeCoeff = diffTime
+                else:
+                    return 0
+
         # calculate error
         self.fError = self.fTarget - fInput
-        self.fIntegral += self.fError
-        fDerivative = self.fError - self.fPrevError
+        self.fIntegral += self.fError*timeCoeff
+        fDerivative = (self.fError - self.fPrevError)/timeCoeff
         
         # antiwindup 
         # check if error crosses zero
