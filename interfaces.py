@@ -17,7 +17,8 @@ class Speed():
     @classmethod
     def joystickToThrottle(cls, joystickVal):
         # assuming voltage range of 0.7-3.7V
-        return (joystickVal * 3) + 0.7
+        return 1.5*joystickVal
+        #return (joystickVal *2) + 0.7
 
 class Steering():
     def __init__(self):
