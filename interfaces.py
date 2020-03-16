@@ -15,10 +15,11 @@ class Speed():
         return calcSpeed
 
     @classmethod
-    def joystickToThrottle(cls, joystickVal):
-        # assuming voltage range of 0.7-3.7V
-        return 1.5*joystickVal
-        #return (joystickVal *2) + 0.7
+    def joystickToThrottle(cls, joystickVal, m = 1.5, b = 0):
+        '''
+        throttle voltage = joystickVal * m + b 
+        '''
+        return joystickVal * m + b
 
 class Steering():
     def __init__(self):
@@ -32,6 +33,9 @@ class Steering():
         return tan(posBike - posTarget) / distanceTarget
 
     @classmethod
-    def joystickToSteeringAngle(cls, joystickVal):
-        return joystickVal * 45
+    def joystickToSteeringAngle(cls, joystickVal, m = 45, b = 0):
+        '''
+        steering angle = joystickVal * m + b 
+        '''
+        return joystickVal * m + b
 
