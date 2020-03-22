@@ -1,11 +1,21 @@
 from math import tan
+try:
+    from .pid import Pid
+except Exception:
+    from pid import Pid
 
-class Speed():
-    def __init__(self):
-        self.fTarget = 0
-    
-    def setTarget(self, target):
-        self.fTarget = target
+class Speed(Pid):
+    def __init__(self, objectName = "speed-control"):
+        self.objectName = objectName
+        super().__init__(objectName)
+
+    def setup(self, windup = 100):
+        self.loadJson()
+        self.setWindupLimit(windup)
+        # Ts = circ (m)
+        #  / maxSpeed (m/s)
+        # Ts = 0.09 gives 4 samples/sec
+        self.enableTime(sampleTime = 0.09)
 
     def calcTarget(self, blobs):
         '''
@@ -21,9 +31,15 @@ class Speed():
         '''
         return joystickVal * m + b
 
-class Steering():
-    def __init__(self):
-        pass
+class Steering(Pid):
+    def __init__(self, objectName = "steering-control"):
+        self.objectName = objectName
+        super().__init__(objectName)
+
+    def setup(self, windup = 100):
+        self.loadJson()
+        self.setWindupLimit(windup)
+        self.enableTime(sampleTime = 1/(45*2))
 
     def calcAngle(self, posBike, posTarget, distanceTarget):
         '''
@@ -39,3 +55,10 @@ class Steering():
         '''
         return joystickVal * m + b
 
+if __name__ == "__main__":
+    # testing how this would work with PID 
+    steering = Steering()
+    steering.setup()
+    # loop and load data 
+    # angle = steering.calcAngle(posBike, posTarget)
+    # output = steering.run(input = angle)
