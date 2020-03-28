@@ -1,9 +1,14 @@
 {
     "speed-control": {
-        "Kp" : 100,
-        "Ki" : 1,
+        "Kp" : 1,
+        "Ki" : 0.01,
         "Kd" : 0,
-        "target" : 10
+        "target" : 1.389,
+        "max speed (m/s)" : 2.78,
+        "speed mod scalar"  : 1,
+        "max throttle (V)" : 5,
+        "throttle scalar": 0.8,
+        "bike half width (px)": 100
     },
     "steering-control": {
         "Kp" : 100,
