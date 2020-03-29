@@ -1,5 +1,5 @@
-from math import tan
-from numpy import amin, where, stack
+from math import tan, degrees
+from numpy import amin, where, stack, ndarray
 from json import load
 try:
     from .pid import Pid
@@ -38,55 +38,21 @@ class Speed(Pid):
             self.throttleScalar = constants["throttle scalar"]
             self.bikeHalfWidth      = constants["bike half width (px)"]
 
-    def checkBlobPos(self):
-        '''
-        checks blob positions against current pos and target pos
-        returns np.array of indices that are in the way
-        '''
-        # assuming x,y are center pos
-        # only check x
-        blobsHalfWidth = self.blobs.widths//2
-        xBoundLower = self.blobs.xPos - blobsHalfWidth
-        xBoundUpper = self.blobs.xPos + blobsHalfWidth
-        xBounds = stack((xBoundLower, xBoundUpper), axis=-1)
-        # TODO need bikepos and bike width in pixels 
-        bikePosLower = self.bikePos - self.bikeHalfWidth
-        bikePosUpper = self.bikePos + self.bikeHalfWidth
-        inBoundIndices = where( (xBounds >= bikePosLower) & (xBounds <= bikePosUpper) )
-        return inBoundIndices[0]
+    
 
-    def checkEmergencyStop(self, crashTimes):
-        emergency = 0 
-        updatePeriod = self.circ / self.speedMeas
-        if (updatePeriod > crashTimes).any():
-            emergency = 1
-            print("emergency stop engaged")
-        return emergency
-
-    def calcTarget(self):
+    def calcTarget(self, crashTimes):
         '''
         returns a new target speed based off of blob position
         '''
-        speedMod = 0 
-        if self.blobs is not None:
-        # check if blob is in the way 
-            blobIndices = self.checkBlobPos()
-            # check crash time 
-            # TODO unpack bike width 
-            # TODO figure out if xPos should be pixels
-            # TODO blobs.depths is a numpy array
-            # TODO this needs to be in m/s
-            crashTimes =  self.blobs.depths[blobIndices] / self.speedMeas
-            if len(crashTimes) == 0:
-                return self.target
-            # check emergency stop 
-            if self.checkEmergencyStop(crashTimes):
-                return -1
-            # check safe stop based off closest object
-            crashMin = amin(crashTimes)
-            speedMod = self.speedModScalar*self.circ/crashMin
-            if speedMod > self.target:
-                speedMod = self.target
+        speedMod = 0        
+        # check crash time 
+        # check safe stop based off closest object
+        if type(crashTimes) is ndarray:
+            if len(crashTimes) != 0:
+                crashMin = amin(crashTimes)
+                speedMod = self.speedModScalar*self.circ/crashMin
+                if speedMod > self.target:
+                    speedMod = self.target
         calcSpeed = self.target - speedMod
         return calcSpeed
 
@@ -95,10 +61,9 @@ class Speed(Pid):
         assuming the pid output is speed
         maps speed to voltage 
         '''
-        speedDiff = speedOut / self.speedMax
-        # speedDiff = (speedOut - self.speedMeas) / self.speedMax
+        speedRatio = speedOut / self.speedMax
         maxVolt = self.throttleMax * self.throttleScalar
-        self.voltOut +=  maxVolt * speedDiff
+        self.voltOut +=  maxVolt * speedRatio
         # check volt bounds 
         if self.voltOut > maxVolt:
             self.setWindupLimitUpper = self.integral
@@ -108,18 +73,13 @@ class Speed(Pid):
             self.voltOut = 0
         return self.voltOut
 
-    def feedInput(self, speedMeas, blobs, bikePos):
+    def feedInput(self, speedMeas, crashTimes):
         '''
         speedMeas [m/s] = tachometer speed
+        crashTimes = np.array of crashTimes for each blob
         '''
-        self.speedMeas = speedMeas
-        self.blobs = blobs
-        self.bikePos = bikePos
         # if blobs are blocking change target speed
-        target = self.calcTarget()
-        if target < 0:
-            # emergency brake 
-            return 0
+        target = self.calcTarget(crashTimes)
         if target != self.target:
             self.setTarget(target)
         output = self.run(speedMeas)
@@ -154,7 +114,7 @@ class Steering(Pid):
     def feedInput(self, posBike, posTarget, distanceTarget = 1):
         angle = self.calcAngle(posBike, posTarget, distanceTarget)
         output = self.run(angle)
-        return output
+        return degrees(output)
 
     @classmethod
     def joystickToSteeringAngle(cls, joystickVal, m = 45, b = 0):
@@ -164,67 +124,92 @@ class Steering(Pid):
         return joystickVal * m + b
 
 class Blobs():
-    def __init__(self):
+    def __init__(self, circ, bikeHalfWidth):
+        self.circ = circ
+        self.bikeHalfWidth = bikeHalfWidth
         self.xPos = 0
         self.widths = 0
         self.depths = 0
+        self.bikePos = 0 
+        self.speedMeas = 0
+
+    def update(self, xPos, widths, depths, bikePos):
+        self.xPos = xPos
+        self.widths = widths
+        self.depths = depths
+        self.bikePos = bikePos
+
+    def checkBlobPos(self):
+        '''
+        checks blob positions against current pos and target pos
+        returns np.array of indices that are in the way
+        '''
+        # assuming x,y are center pos
+        # only check x
+        blobsHalfWidth = self.widths//2
+        xBoundLower = self.xPos - blobsHalfWidth
+        xBoundUpper = self.xPos + blobsHalfWidth
+        xBounds = stack((xBoundLower, xBoundUpper), axis=-1)
+        bikePosLower = self.bikePos - self.bikeHalfWidth
+        bikePosUpper = self.bikePos + self.bikeHalfWidth
+        inBoundIndices = where( (xBounds >= bikePosLower) & (xBounds <= bikePosUpper) )
+        return inBoundIndices[0]
+
+    def checkCrash(self, speedMeas):
+        crashTimes = 0
+        self.speedMeas = speedMeas
+        if len(self.xPos) > 0:
+            blobIndices = self.checkBlobPos()
+            crashTimes =  self.depths[blobIndices] / speedMeas
+        return crashTimes
+
+    def checkEmergencyStop(self, crashTimes):
+        emergency = 0 
+        updatePeriod = self.circ / self.speedMeas
+        if type(crashTimes) is ndarray:
+            if (updatePeriod > crashTimes).any():
+                emergency = 1
+                print("emergency stop engaged")
+        return emergency
 
 if __name__ == "__main__":
-    # testing how this would work with PID 
+    # example of how to run pid and blobs
+    import numpy as np 
+    import time 
+    # inits
+    # set bike half width in pixels
+    blobs = Blobs(circ = 2.055, bikeHalfWidth = 100)
+    speed = Speed(circ = 2.055)
+    speed.setup()
     steering = Steering()
     steering.setup()
-    # loop and load data 
-    # angle = steering.calcAngle(posBike, posTarget)
-    # output = steering.run(input = angle)
-
-    # timing test 
-    import time 
-    import numpy as np 
-    speed = Speed(2.055)
-    speed.setup()
-    speed.voltOut = 1.4
-    bikePos = 350
-    bikeSpeed = 0.9
-    blobs = Blobs()
-    xPos = np.array([250, 600, 100, 487])
-    widths = np.array([50, 25, 80, 200])
-    depths = np.array([3, 1, 10, 8])
-    blobs.xPos = xPos
-    blobs.widths = widths
-    blobs.depths = depths
-    time.sleep(0.09)
-
-    print("testing feed input single ")
+    # get new data 
+    # TODO make sure this is the new data types
+    sizeRand = np.random.randint(0,20)
+    blobXpos = np.random.randint(0, 800, size = sizeRand)
+    blobWidths = np.random.randint(0, 200, size = sizeRand)
+    blobDepths = np.random.uniform(3, 15, size = sizeRand)
+    bikeSpeed = np.random.uniform(0.2,1)
+    bikePosPx = np.random.randint(200,600)
+    targetPosM = np.random.uniform(0,0.5)
+    bikePosM = np.random.uniform(0,0.5)
+    time.sleep(0.1)
+    # update blobs
     startTime = time.perf_counter()
-    output = speed.feedInput(bikeSpeed, blobs, bikePos)
+    blobs.update(xPos = blobXpos, widths = blobWidths, depths  = blobWidths, bikePos = bikePosPx)
+    crashTimes = blobs.checkCrash(bikeSpeed)
+    emergencyStop = blobs.checkEmergencyStop(crashTimes)
+    if emergencyStop:
+        # set throttle volt to 0/brake 
+        # switch to manual drive 
+        pass
+    else:
+        throttleVolt = speed.feedInput(bikeSpeed, crashTimes)
+        steeringAngle = steering.feedInput(bikePosM, targetPosM, distanceTarget = 1)
+        # apply throttle voltage and steering angle 
     endTime = time.perf_counter()
-    diffTime = endTime - startTime
-    print(f"diff time: {diffTime}, output : {output}")
-
-    print("\n\ntesting feed input random 10 times")
-    totalTime = 0
-    blobsRand = blobs
-    for i in range(10):
-        # rand input
-        time.sleep(0.2)
-        sizeRand = np.random.randint(0,20)
-        xPosRand = np.random.randint(0, 800, size = sizeRand)
-        widthsRand = np.random.randint(0, 200, size = sizeRand)
-        depthsRand = np.random.uniform(3, 15, size = sizeRand)
-        blobsRand.xPos = xPosRand
-        blobsRand.widths = widthsRand
-        blobsRand.depths = depthsRand
-
-        bikeSpeedRand = np.random.uniform(0.2,1)
-        bikePosRand = np.random.randint(200,600)
-        print(f"number of blobs: {sizeRand}, bike speed: {bikeSpeedRand}")
-        startTime = time.perf_counter()
-        output = speed.feedInput(bikeSpeedRand, blobsRand, bikePosRand)
-        endTime = time.perf_counter()
-        diffTime = endTime - startTime
-        totalTime += diffTime
-        print(f"diff time: {diffTime}, output : {output}")
-    print(f"average runtime: {totalTime/10}")
+    print(f"inputs: bikeSpeed {bikeSpeed}, bike pos {bikePosM}, target pos {targetPosM}, crashTimes {crashTimes}")
+    print(f"outputs: throttleVolt {throttleVolt}, steeringAngle {steeringAngle}, runtime {endTime - startTime}")
         
     
 

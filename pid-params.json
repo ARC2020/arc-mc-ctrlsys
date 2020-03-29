@@ -11,8 +11,8 @@
         "bike half width (px)": 100
     },
     "steering-control": {
-        "Kp" : 100,
-        "Ki" : 1,
+        "Kp" : 1,
+        "Ki" : 0.01,
         "Kd" : 0,
         "target" : 0
     }
