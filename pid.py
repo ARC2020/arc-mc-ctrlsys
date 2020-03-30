@@ -29,6 +29,7 @@ class Pid():
         self.integral      = 0
         self.prevError     = 0
         self.output        = 0
+        self.defaultTarget = 0
         self.filename      = "pid-params.json"
 
     def loadJson(self, objectName = None, filename = None):
@@ -42,7 +43,8 @@ class Pid():
             self.kp = constants["Kp"]
             self.ki = constants["Ki"]
             self.kd = constants["Kd"]
-            self.setTarget(constants["target"])
+            self.defaultTarget = constants["target"]
+            self.setTarget(self.defaultTarget)
 
     def writeJson(self, objectName = None, filename = None):
         if filename is None:

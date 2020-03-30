@@ -53,6 +53,9 @@ class Speed(Pid):
                 speedMod = self.speedModScalar*self.circ/crashMin
                 if speedMod > self.target:
                     speedMod = self.target
+        # reset target speed to default if no obstables 
+        if speedMod <= 0:
+            self.target = self.defaultTarget
         calcSpeed = self.target - speedMod
         return calcSpeed
 
