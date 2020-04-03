@@ -1,4 +1,4 @@
-from math import tan, degrees
+from math import arctan, degrees
 from numpy import amin, where, stack, ndarray
 from json import load
 try:
@@ -112,7 +112,7 @@ class Steering(Pid):
         returns angle in radians 
         need to add bounds 
         '''
-        return tan(posBike - posTarget) / distanceTarget
+        return arctan(posBike - posTarget) / distanceTarget
 
     def feedInput(self, posBike, posTarget, distanceTarget = 1):
         angle = self.calcAngle(posBike, posTarget, distanceTarget)
