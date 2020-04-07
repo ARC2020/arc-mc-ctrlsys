@@ -1,10 +1,46 @@
-from math import arctan, degrees
-from numpy import amin, where, stack, ndarray
+from math import  degrees
+from numpy import amin, where, stack, ndarray, arctan
+from numpy.random import normal
 from json import load
 try:
     from .pid import Pid
 except Exception:
     from pid import Pid
+
+
+class SimulateFeedback():
+    def __init__(self, inRef = 10, outRef = 5):
+        self.inRef = inRef
+        self.outRef = outRef
+        self.prevOut = 0
+
+    def simulate(self, measVal, output):
+        '''
+        arguments:
+        input: measured speed
+        output: PID output 
+        returns:
+        new input for simulation
+        '''
+
+        if output < 0:
+            raise InterfaceError(f'output pid ({output}) less than 0')
+        
+        diff = output - self.prevOut
+        diff += normal(0, abs(diff*0.05))
+        outRatio = diff/self.outRef
+        feedback = measVal + outRatio*self.inRef
+        self.prevOut = output
+
+        if output == 0:
+            # decrement speed for 0 output until stops 
+            measVal -= 0.4*self.inRef
+            if measVal < 0:
+                feedback = 0
+            else:
+                feedback = measVal
+
+        return feedback
 
 
 class InterfaceError(Exception):
@@ -37,8 +73,6 @@ class Speed(Pid):
             self.throttleMax    = constants["max throttle (V)"]
             self.throttleScalar = constants["throttle scalar"]
             self.bikeHalfWidth      = constants["bike half width (px)"]
-
-    
 
     def calcTarget(self, crashTimes):
         '''
@@ -125,6 +159,7 @@ class Steering(Pid):
         steering angle = joystickVal * m + b 
         '''
         return joystickVal * m + b
+
 
 class Blobs():
     def __init__(self, circ, bikeHalfWidth):
