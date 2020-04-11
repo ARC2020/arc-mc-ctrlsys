@@ -9,7 +9,7 @@ except Exception:
 
 
 class SimulateFeedback():
-    def __init__(self, inRef = 10, outRef = 5):
+    def __init__(self, inRef = 3, outRef = 5):
         self.inRef = inRef
         self.outRef = outRef
         self.prevOut = 0
@@ -27,7 +27,7 @@ class SimulateFeedback():
             raise InterfaceError(f'output pid ({output}) less than 0')
         
         diff = output - self.prevOut
-        diff += normal(0, abs(diff*0.05))
+        diff += normal(0, abs(diff*0.2))
         outRatio = diff/self.outRef
         feedback = measVal + outRatio*self.inRef
         self.prevOut = output
@@ -151,6 +151,7 @@ class Steering(Pid):
     def feedInput(self, posBike, posTarget, distanceTarget = 1):
         angle = self.calcAngle(posBike, posTarget, distanceTarget)
         output = self.run(angle)
+        output *= -1 #to match Xbox joystick convention
         return degrees(output)
 
     @classmethod
@@ -203,6 +204,8 @@ class Blobs():
 
     def checkEmergencyStop(self, crashTimes):
         emergency = 0 
+        if self.speedMeas == 0:
+            return emergency
         updatePeriod = self.circ / self.speedMeas
         if type(crashTimes) is ndarray:
             if (updatePeriod > crashTimes).any():
